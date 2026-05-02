@@ -1,111 +1,195 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Studio Hub | Gestión Colectiva</title>
+    <title>Studio Hub | Full Version</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap');
         body { background-color: #0b0f1a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
         .glass { background: rgba(23, 30, 49, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .nav-active { color: #a78bfa; background: rgba(167, 139, 250, 0.1); border-radius: 12px; }
-        input, select { background: #1a202e !important; color: white !important; border: 1px solid #2d3748 !important; border-radius: 0.75rem !important; padding: 0.75rem !important; width: 100%; }
+        .nav-btn.active { color: #a78bfa; background: rgba(167, 139, 250, 0.1); border-radius: 15px; }
+        input, select { background: #1a202e !important; color: white !important; border: 1px solid #2d3748 !important; border-radius: 0.75rem !important; padding: 0.75rem !important; width: 100%; margin-bottom: 10px; }
     </style>
 </head>
 <body class="pb-32">
 
-    <div class="glass border-b border-white/5 px-6 py-2 flex justify-between items-center text-[10px] font-black text-slate-500 uppercase">
-        <div>ALQUILER: <b id="rent-display" class="text-violet-400">420€</b></div>
-        <button onclick="exportData()" class="text-violet-400"><i class="fas fa-download mr-1"></i> BACKUP JSON</button>
+    <div class="glass border-b border-white/5 px-6 py-3 flex justify-between items-center text-[10px] font-black uppercase sticky top-0 z-40">
+        <div class="flex gap-4">
+            <span>Alquiler: <b id="rent-top" class="text-violet-400">420€</b></span>
+            <span>Fondo: <b id="stat-gastos" class="text-emerald-400">0€</b></span>
+        </div>
+        <button onclick="updateRent()" class="text-slate-500 hover:text-white"><i class="fas fa-cog"></i></button>
     </div>
 
-    <main class="max-w-4xl mx-auto p-4 md:p-10 space-y-8">
-        <section id="view-dash" class="space-y-6">
-            <h1 class="text-4xl font-black text-white">Panel de<br><span class="text-violet-500">Control</span></h1>
-            <div id="stats" class="grid grid-cols-2 gap-4">
-                <div class="glass p-6 rounded-[2rem] border-b-2 border-violet-500 text-center">
-                    <p class="text-[10px] font-black uppercase text-slate-500">Cuota p.p.</p>
-                    <div id="stat-cuota" class="text-2xl font-black text-white">0€</div>
+    <main class="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
+        
+        <section id="view-dash" class="view space-y-6">
+            <h1 class="text-4xl font-black text-white leading-tight">Control de<br><span class="text-violet-500">Colectivo</span></h1>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div class="glass p-6 rounded-[2rem] border-b-2 border-violet-500">
+                    <p class="text-[10px] font-black text-slate-500 uppercase">Cuota Mensual</p>
+                    <div id="stat-cuota" class="text-2xl font-black">0€</div>
                 </div>
-                <div class="glass p-6 rounded-[2rem] border-b-2 border-emerald-500 text-center">
-                    <p class="text-[10px] font-black uppercase text-slate-500">Miembros</p>
-                    <div id="stat-miembros" class="text-2xl font-black text-white">0</div>
+                <div class="glass p-6 rounded-[2rem] border-b-2 border-sky-500">
+                    <p class="text-[10px] font-black text-slate-500 uppercase">Integrantes</p>
+                    <div id="stat-miembros" class="text-2xl font-black">0</div>
                 </div>
             </div>
-            <div class="glass p-6 rounded-[2.5rem]">
-                <h3 class="text-xs font-black text-sky-400 uppercase mb-4">Reservas de Hoy</h3>
-                <div id="dash-schedule" class="space-y-2"></div>
+
+            <div class="glass p-8 rounded-[2.5rem]">
+                <h3 class="text-xs font-black text-violet-400 uppercase tracking-widest mb-4"><i class="fas fa-calendar-day mr-2"></i>Próximos Eventos</h3>
+                <div id="list-eventos-dash" class="space-y-3"></div>
             </div>
         </section>
 
-        <section id="view-miembros" class="hidden space-y-6">
+        <section id="view-miembros" class="view hidden space-y-6">
             <div class="flex justify-between items-center">
                 <h2 class="text-2xl font-black">Miembros</h2>
-                <button onclick="openModal('miembro')" class="bg-violet-600 px-4 py-2 rounded-xl font-bold text-xs">AÑADIR</button>
+                <button onclick="openModal('miembro')" class="bg-violet-600 px-4 py-2 rounded-xl text-xs font-bold">NUEVO</button>
             </div>
             <div id="list-miembros" class="grid gap-3"></div>
         </section>
+
+        <section id="view-horarios" class="view hidden space-y-6">
+            <h2 class="text-2xl font-black text-center">Reserva Semanal</h2>
+            <div id="list-horarios" class="grid gap-6"></div>
+        </section>
+
+        <section id="view-gastos" class="view hidden space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-2xl font-black">Contabilidad</h2>
+                <button onclick="openModal('gasto')" class="bg-emerald-600 px-4 py-2 rounded-xl text-xs font-bold">NUEVO GASTO</button>
+            </div>
+            <div id="list-gastos" class="space-y-3"></div>
+        </section>
+
     </main>
 
-    <nav class="fixed bottom-0 left-0 right-0 glass flex justify-around p-4 z-50 rounded-t-[2rem]">
-        <button onclick="showView('dash')" class="p-2"><i class="fas fa-home text-xl"></i></button>
-        <button onclick="showView('miembros')" class="p-2"><i class="fas fa-users text-xl"></i></button>
+    <nav class="fixed bottom-0 left-0 right-0 glass flex justify-around p-4 z-50 rounded-t-[2rem] border-t border-white/5">
+        <button onclick="showView('dash')" id="btn-dash" class="nav-btn active p-3"><i class="fas fa-home text-xl"></i></button>
+        <button onclick="showView('miembros')" id="btn-miembros" class="nav-btn p-3"><i class="fas fa-users text-xl"></i></button>
+        <button onclick="showView('horarios')" id="btn-horarios" class="nav-btn p-3"><i class="fas fa-clock text-xl"></i></button>
+        <button onclick="showView('gastos')" id="btn-gastos" class="nav-btn p-3"><i class="fas fa-wallet text-xl"></i></button>
     </nav>
 
-    <div id="modal" class="fixed inset-0 bg-black/90 hidden z-[100] items-center justify-center p-6">
-        <div class="glass w-full max-w-sm rounded-[2.5rem] p-8">
-            <h3 id="modal-title" class="text-xl font-black mb-6 text-white uppercase">Editar</h3>
-            <form id="form-universal" class="space-y-4">
+    <div id="modal" class="fixed inset-0 bg-black/95 hidden z-[100] items-center justify-center p-6 backdrop-blur-md">
+        <div class="glass w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10">
+            <h3 id="modal-title" class="text-xl font-black mb-6 text-white uppercase italic">Editor</h3>
+            <form id="form-universal">
                 <div id="form-body"></div>
-                <button type="submit" class="w-full bg-violet-600 py-4 rounded-2xl font-black text-white">GUARDAR</button>
-                <button type="button" onclick="closeModal()" class="w-full text-slate-500 font-bold mt-2">CANCELAR</button>
+                <button type="submit" class="w-full bg-violet-600 py-4 rounded-2xl font-black text-white mt-4 shadow-lg shadow-violet-600/20">GUARDAR</button>
+                <button type="button" onclick="closeModal()" class="w-full text-slate-500 font-bold mt-4 text-xs">CANCELAR</button>
             </form>
         </div>
     </div>
 
     <script>
-        // BASE DE DATOS LOCAL (Sincronizada por dispositivo)
-        let db = JSON.parse(localStorage.getItem('studio_db')) || { miembros: [], horarios: [] };
-        let rent = 420;
+        // DB Local
+        let db = JSON.parse(localStorage.getItem('studio_pro_db')) || {
+            miembros: [],
+            horarios: [],
+            gastos: [],
+            eventos: [],
+            rent: 420
+        };
 
         function save() {
-            localStorage.setItem('studio_db', JSON.stringify(db));
+            localStorage.setItem('studio_pro_db', JSON.stringify(db));
             render();
         }
 
+        function showView(v) {
+            document.querySelectorAll('.view').forEach(s => s.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('view-' + v).classList.remove('hidden');
+            document.getElementById('btn-' + v).classList.add('active');
+        }
+
+        function updateRent() {
+            const r = prompt("Introduce alquiler mensual total:", db.rent);
+            if(r) { db.rent = parseFloat(r); save(); }
+        }
+
         function render() {
-            const mList = document.getElementById('list-miembros');
-            const cuota = (rent / (db.miembros.length || 1)).toFixed(2);
-            
+            const cuota = (db.rent / (db.miembros.length || 1)).toFixed(2);
             document.getElementById('stat-cuota').innerText = cuota + "€";
             document.getElementById('stat-miembros').innerText = db.miembros.length;
+            document.getElementById('rent-top').innerText = db.rent + "€";
 
-            mList.innerHTML = db.miembros.map(m => `
-                <div class="glass p-4 rounded-2xl flex justify-between items-center">
+            // Miembros
+            document.getElementById('list-miembros').innerHTML = db.miembros.map(m => `
+                <div class="glass p-5 rounded-3xl flex justify-between items-center border-l-4 ${m.pago === 'SI' ? 'border-emerald-500' : 'border-amber-500'}">
                     <div>
-                        <p class="font-bold">${m.nombre}</p>
+                        <p class="font-black text-white">${m.nombre}</p>
                         <p class="text-[10px] text-slate-500 uppercase">${m.rol}</p>
                     </div>
-                    <button onclick="deleteMiembro('${m.id}')" class="text-red-500 text-xs"><i class="fas fa-trash"></i></button>
+                    <div class="flex gap-3">
+                        <button onclick="togglePago('${m.id}')" class="text-[10px] font-black px-3 py-1 rounded-lg ${m.pago === 'SI' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">${m.pago === 'SI' ? 'PAGADO' : 'PENDIENTE'}</button>
+                        <button onclick="deleteItem('miembros', '${m.id}')" class="text-slate-600"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Gastos
+            const totalG = db.gastos.reduce((acc, g) => acc + parseFloat(g.importe), 0);
+            document.getElementById('stat-gastos').innerText = totalG + "€";
+            document.getElementById('list-gastos').innerHTML = db.gastos.map(g => `
+                <div class="glass p-4 rounded-2xl flex justify-between border-l-4 border-emerald-500">
+                    <span>${g.concepto}</span>
+                    <b class="text-emerald-400">${g.importe}€</b>
+                </div>
+            `).join('');
+
+            // Horarios por días
+            const dias = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+            document.getElementById('list-horarios').innerHTML = dias.map(d => `
+                <div class="space-y-3">
+                    <p class="text-[10px] font-black uppercase text-slate-500 border-b border-white/5 pb-1">${d}</p>
+                    <div class="grid gap-2">
+                        ${db.horarios.filter(h => h.dia === d).map(h => `
+                            <div class="bg-sky-500/10 p-3 rounded-xl flex justify-between items-center border border-sky-500/20">
+                                <div><b class="text-sky-400 text-xs">${h.nombre}</b> <span class="text-[10px] text-slate-400 ml-2">${h.tramo}</span></div>
+                                <button onclick="deleteItem('horarios', '${h.id}')" class="text-sky-900 text-xs"><i class="fas fa-times"></i></button>
+                            </div>
+                        `).join('')}
+                        <button onclick="openModal('horario', '${d}')" class="text-slate-600 text-[10px] border border-dashed border-slate-800 p-2 rounded-xl">+ Reservar</button>
+                    </div>
                 </div>
             `).join('');
         }
 
-        function showView(v) {
-            document.getElementById('view-dash').classList.add('hidden');
-            document.getElementById('view-miembros').classList.add('hidden');
-            document.getElementById('view-' + v).classList.remove('hidden');
-        }
-
-        function openModal(type) {
+        function openModal(type, extra = '') {
             const body = document.getElementById('form-body');
             document.getElementById('modal').style.display = 'flex';
+            document.getElementById('modal-title').innerText = "Añadir " + type;
+
             if(type === 'miembro') {
                 body.innerHTML = `
-                    <input type="text" name="nombre" placeholder="Nombre" required class="mb-2">
-                    <input type="text" name="rol" placeholder="Instrumento/Rol" required>
+                    <input type="hidden" name="type" value="miembros">
+                    <input type="text" name="nombre" placeholder="Nombre del integrante" required>
+                    <input type="text" name="rol" placeholder="Instrumento / Rol" required>
+                    <input type="hidden" name="pago" value="NO">
+                `;
+            } else if(type === 'horario') {
+                body.innerHTML = `
+                    <input type="hidden" name="type" value="horarios">
+                    <input type="hidden" name="dia" value="${extra}">
+                    <select name="nombre" required>
+                        <option value="">¿Quién reserva?</option>
+                        ${db.miembros.map(m => `<option value="${m.nombre}">${m.nombre}</option>`).join('')}
+                    </select>
+                    <input type="text" name="tramo" placeholder="Ej: 17:00 a 20:00" required>
+                `;
+            } else if(type === 'gasto') {
+                body.innerHTML = `
+                    <input type="hidden" name="type" value="gastos">
+                    <input type="text" name="concepto" placeholder="¿En qué se gastó?" required>
+                    <input type="number" name="importe" placeholder="Importe (€)" required>
                 `;
             }
         }
@@ -113,30 +197,33 @@
         document.getElementById('form-universal').onsubmit = (e) => {
             e.preventDefault();
             const fd = new FormData(e.target);
-            db.miembros.push({ id: Date.now(), nombre: fd.get('nombre'), rol: fd.get('rol') });
+            const type = fd.get('type');
+            const data = Object.fromEntries(fd);
+            data.id = Date.now().toString();
+            db[type].push(data);
             closeModal();
             save();
         };
 
-        function deleteMiembro(id) {
-            db.miembros = db.miembros.filter(m => m.id != id);
+        function togglePago(id) {
+            const m = db.miembros.find(x => x.id === id);
+            m.pago = m.pago === 'SI' ? 'NO' : 'SI';
             save();
         }
 
-        function closeModal() { document.getElementById('modal').style.display = 'none'; }
-        
-        function exportData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "backup_estudio.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+        function deleteItem(type, id) {
+            if(confirm("¿Borrar registro?")) {
+                db[type] = db[type].filter(x => x.id !== id);
+                save();
+            }
         }
+
+        function closeModal() { document.getElementById('modal').style.display = 'none'; }
 
         window.onload = render;
     </script>
 </body>
-      </html>
-  
+</html>
+
+
+```
