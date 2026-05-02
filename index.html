@@ -1,320 +1,142 @@
-```react
-import React, { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc, 
-  onSnapshot, 
-  deleteDoc, 
-  query 
-} from 'firebase/firestore';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  signInWithCustomToken, 
-  onAuthStateChanged 
-} from 'firebase/auth';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Hub | Gestión Colectiva</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap');
+        body { background-color: #0b0f1a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(23, 30, 49, 0.8); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .nav-active { color: #a78bfa; background: rgba(167, 139, 250, 0.1); border-radius: 12px; }
+        input, select { background: #1a202e !important; color: white !important; border: 1px solid #2d3748 !important; border-radius: 0.75rem !important; padding: 0.75rem !important; width: 100%; }
+    </style>
+</head>
+<body class="pb-32">
 
-// Configuración de Firebase (proporcionada por el entorno)
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'studio-manager-pro';
-
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [view, setView] = useState('dash');
-  const [rentTotal, setRentTotal] = useState(420);
-  const [showModal, setShowModal] = useState(false);
-  const [modalConfig, setModalConfig] = useState({});
-  const [toast, setToast] = useState({ show: false, msg: '' });
-
-  // Estados de colecciones
-  const [miembros, setMiembros] = useState([]);
-  const [horarios, setHorarios] = useState([]);
-  const [eventos, setEventos] = useState([]);
-  const [limpieza, setLimpieza] = useState([]);
-  const [gastos, setGastos] = useState([]);
-
-  // 1. Autenticación (REGLA 3)
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (err) {
-        console.error("Auth error:", err);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
-  }, []);
-
-  // 2. Escucha de datos en tiempo real (REGLA 1 y 2)
-  useEffect(() => {
-    if (!user) return;
-
-    const collections = [
-      { name: 'miembros', setter: setMiembros },
-      { name: 'horarios', setter: setHorarios },
-      { name: 'eventos', setter: setEventos },
-      { name: 'limpieza', setter: setLimpieza },
-      { name: 'gastos', setter: setGastos },
-      { name: 'config', setter: (data) => data[0] && setRentTotal(data[0].rent || 420) }
-    ];
-
-    const unsubscribes = collections.map(({ name, setter }) => {
-      // Ruta estricta para datos públicos (REGLA 1)
-      const colRef = collection(db, 'artifacts', appId, 'public', 'data', name);
-      return onSnapshot(colRef, (snapshot) => {
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        setter(docs);
-      }, (err) => console.error(`Error en ${name}:`, err));
-    });
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [user]);
-
-  // Funciones de Base de Datos
-  const saveRecord = async (colName, id, data) => {
-    if (!user) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', colName, id);
-    await setDoc(docRef, data, { merge: true });
-    showToast("Datos sincronizados");
-  };
-
-  const deleteRecord = async (colName, id) => {
-    if (!user) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', colName, id);
-    await deleteDoc(docRef);
-    showToast("Registro eliminado");
-  };
-
-  const showToast = (msg) => {
-    setToast({ show: true, msg });
-    setTimeout(() => setToast({ show: false, msg: '' }), 2500);
-  };
-
-  // Cálculos
-  const cuotaPersona = (rentTotal / (miembros.length || 1)).toFixed(2);
-  const totalPagado = miembros.filter(m => m.pago === 'SI').length * cuotaPersona;
-  const totalPendiente = (miembros.length - miembros.filter(m => m.pago === 'SI').length) * cuotaPersona;
-  const totalGastosExtra = gastos.reduce((acc, g) => acc + (parseFloat(g.importe) || 0), 0);
-
-  // Renderizado de vistas
-  const renderDash = () => (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard title="Recaudado" val={`${totalPagado.toFixed(0)}€`} color="text-emerald-400" border="border-emerald-500" />
-        <StatCard title="Pendiente" val={`${totalPendiente.toFixed(0)}€`} color="text-amber-500" border="border-amber-500" />
-        <StatCard title="Cuota p.p." val={`${cuotaPersona}€`} color="text-sky-400" border="border-sky-500" />
-        <StatCard title="Gastos Extra" val={`${totalGastosExtra.toFixed(0)}€`} color="text-indigo-400" border="border-indigo-500" />
-      </div>
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-slate-900/50 p-6 rounded-[2rem] border border-white/5">
-          <h3 className="text-violet-400 font-black text-xs uppercase tracking-widest mb-4">Agenda Próxima</h3>
-          {eventos.slice(0,3).map(ev => (
-            <div key={ev.id} className="flex items-center gap-3 mb-2 p-2 bg-white/5 rounded-xl">
-              <div className="w-1.5 h-1.5 rounded-full bg-pink-500" />
-              <span className="text-xs font-bold text-white flex-1">{ev.titulo}</span>
-              <span className="text-[10px] text-slate-500">{ev.fecha}</span>
-            </div>
-          ))}
-        </div>
-        <div className="bg-slate-900/50 p-6 rounded-[2rem] border border-white/5">
-          <h3 className="text-sky-400 font-black text-xs uppercase tracking-widest mb-4">Reservas Hoy</h3>
-          {horarios.filter(h => h.dia === new Date().toLocaleDateString('es-ES', {weekday:'long'}).charAt(0).toUpperCase() + new Date().toLocaleDateString('es-ES', {weekday:'long'}).slice(1)).map(h => (
-            <div key={h.id} className="flex justify-between p-2 bg-white/5 rounded-xl mb-2 text-xs">
-              <span className="font-bold text-white">{h.nombre}</span>
-              <span className="text-sky-400 font-black">{h.tramo}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div class="glass border-b border-white/5 px-6 py-2 flex justify-between items-center text-[10px] font-black text-slate-500 uppercase">
+        <div>ALQUILER: <b id="rent-display" class="text-violet-400">420€</b></div>
+        <button onclick="exportData()" class="text-violet-400"><i class="fas fa-download mr-1"></i> BACKUP JSON</button>
     </div>
-  );
 
-  return (
-    <div className="min-h-screen bg-[#0b0f1a] text-slate-200 pb-24 font-sans">
-      {/* Header */}
-      <div className="bg-slate-900/80 backdrop-blur-md border-b border-white/5 px-6 py-3 flex justify-between items-center sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center"><i className="fas fa-wave-square text-white text-xs"></i></div>
-          <span className="font-black text-lg tracking-tighter">STUDIO<span className="text-violet-500">HUB</span></span>
-        </div>
-        <div className="flex gap-4 text-[10px] font-bold text-slate-500">
-          <button onClick={() => {
-            const val = prompt("Nuevo alquiler total:", rentTotal);
-            if(val) saveRecord('config', 'main', { rent: parseFloat(val) });
-          }} className="hover:text-white transition-colors">ALQUILER: <span className="text-violet-400">{rentTotal}€</span></button>
-          <span className="hidden md:inline">MIEMBROS: <span className="text-violet-400">{miembros.length}</span></span>
-        </div>
-      </div>
-
-      <main className="max-w-6xl mx-auto p-4 md:p-10">
-        {view === 'dash' && renderDash()}
-        {view === 'miembros' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-black text-white">Miembros</h2>
-              <button onClick={() => { setModalConfig({type:'miembro'}); setShowModal(true); }} className="bg-violet-600 px-4 py-2 rounded-xl text-xs font-bold">AÑADIR</button>
-            </div>
-            <div className="grid md:grid-cols-3 gap-4">
-              {miembros.map(m => (
-                <div key={m.id} className="bg-slate-900/50 p-5 rounded-3xl border-l-4 flex justify-between items-center border-white/5 hover:border-violet-500 transition-all">
-                  <div className="cursor-pointer" onClick={() => { setModalConfig({type:'miembro', id: m.id, data: m}); setShowModal(true); }}>
-                    <p className="font-black text-white">{m.nombre}</p>
-                    <p className="text-[10px] text-slate-500 uppercase">{m.rol || 'Miembro'}</p>
-                  </div>
-                  <button 
-                    onClick={() => saveRecord('miembros', m.id, { pago: m.pago === 'SI' ? 'NO' : 'SI' })}
-                    className={`text-[10px] font-black px-3 py-1.5 rounded-lg ${m.pago === 'SI' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}
-                  >
-                    {m.pago === 'SI' ? 'PAGADO' : 'PENDIENTE'}
-                  </button>
+    <main class="max-w-4xl mx-auto p-4 md:p-10 space-y-8">
+        <section id="view-dash" class="space-y-6">
+            <h1 class="text-4xl font-black text-white">Panel de<br><span class="text-violet-500">Control</span></h1>
+            <div id="stats" class="grid grid-cols-2 gap-4">
+                <div class="glass p-6 rounded-[2rem] border-b-2 border-violet-500 text-center">
+                    <p class="text-[10px] font-black uppercase text-slate-500">Cuota p.p.</p>
+                    <div id="stat-cuota" class="text-2xl font-black text-white">0€</div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {view === 'horarios' && (
-          <div className="space-y-6 overflow-x-auto">
-            <h2 className="text-2xl font-black text-white">Horario Semanal</h2>
-            <div className="flex gap-4 min-w-max pb-4">
-              {['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'].map(dia => (
-                <div key={dia} className="w-48 space-y-3">
-                  <p className="text-center text-[10px] font-black text-slate-500 uppercase">{dia}</p>
-                  <div className="space-y-2">
-                    {horarios.filter(h => h.dia === dia).map(h => (
-                      <div key={h.id} onClick={() => { setModalConfig({type:'horario', id: h.id, data: h}); setShowModal(true); }} className="bg-sky-500/10 border border-sky-500/20 p-3 rounded-2xl cursor-pointer">
-                        <p className="text-xs font-black text-sky-400">{h.nombre}</p>
-                        <p className="text-[10px] text-slate-400">{h.tramo}</p>
-                      </div>
-                    ))}
-                    <button onClick={() => { setModalConfig({type:'horario', data: {dia}}); setShowModal(true); }} className="w-full py-2 border border-dashed border-slate-700 rounded-xl text-slate-600 text-[10px]">+</button>
-                  </div>
+                <div class="glass p-6 rounded-[2rem] border-b-2 border-emerald-500 text-center">
+                    <p class="text-[10px] font-black uppercase text-slate-500">Miembros</p>
+                    <div id="stat-miembros" class="text-2xl font-black text-white">0</div>
                 </div>
-              ))}
             </div>
-          </div>
-        )}
-
-        {view === 'gastos' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-black text-white">Gastos Comunes</h2>
-              <button onClick={() => { setModalConfig({type:'gasto'}); setShowModal(true); }} className="bg-emerald-600 px-4 py-2 rounded-xl text-xs font-bold">NUEVO GASTO</button>
+            <div class="glass p-6 rounded-[2.5rem]">
+                <h3 class="text-xs font-black text-sky-400 uppercase mb-4">Reservas de Hoy</h3>
+                <div id="dash-schedule" class="space-y-2"></div>
             </div>
-            {gastos.map(g => (
-              <div key={g.id} onClick={() => { setModalConfig({type:'gasto', id: g.id, data: g}); setShowModal(true); }} className="bg-slate-900/50 p-4 rounded-2xl flex justify-between items-center cursor-pointer border border-white/5">
-                <div>
-                  <p className="font-bold text-white">{g.concepto}</p>
-                  <p className="text-[10px] text-slate-500">{g.fecha}</p>
-                </div>
-                <p className="font-black text-emerald-400">{g.importe}€</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
+        </section>
 
-      {/* Navegación Inferior */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-xl border-t border-white/5 flex justify-around p-3 z-40">
-        <NavBtn icon="home" active={view==='dash'} onClick={() => setView('dash')} />
-        <NavBtn icon="users" active={view==='miembros'} onClick={() => setView('miembros')} />
-        <NavBtn icon="clock" active={view==='horarios'} onClick={() => setView('horarios')} />
-        <NavBtn icon="wallet" active={view==='gastos'} onClick={() => setView('gastos')} />
-      </nav>
+        <section id="view-miembros" class="hidden space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-2xl font-black">Miembros</h2>
+                <button onclick="openModal('miembro')" class="bg-violet-600 px-4 py-2 rounded-xl font-bold text-xs">AÑADIR</button>
+            </div>
+            <div id="list-miembros" class="grid gap-3"></div>
+        </section>
+    </main>
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-          <div className="bg-slate-900 w-full max-w-sm rounded-[2.5rem] p-8 border border-white/10">
-            <h3 className="text-xl font-black mb-6 text-white uppercase italic">Editar {modalConfig.type}</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const fd = new FormData(e.target);
-              const data = Object.fromEntries(fd);
-              const col = modalConfig.type === 'miembro' ? 'miembros' : modalConfig.type === 'horario' ? 'horarios' : 'gastos';
-              await saveRecord(col, modalConfig.id || Date.now().toString(), data);
-              setShowModal(false);
-            }} className="space-y-4">
-              {modalConfig.type === 'miembro' && (
-                <>
-                  <Input name="nombre" placeholder="Nombre" defaultValue={modalConfig.data?.nombre} required />
-                  <Input name="rol" placeholder="Instrumento" defaultValue={modalConfig.data?.rol} />
-                  <select name="pago" className="w-full bg-slate-800 border-none rounded-xl p-3 text-white">
-                    <option value="NO">PENDIENTE</option>
-                    <option value="SI" selected={modalConfig.data?.pago === 'SI'}>PAGADO</option>
-                  </select>
-                </>
-              )}
-              {modalConfig.type === 'horario' && (
-                <>
-                  <select name="nombre" className="w-full bg-slate-800 border-none rounded-xl p-3 text-white" required>
-                    <option value="">¿Quién reserva?</option>
-                    {miembros.map(m => <option key={m.id} value={m.nombre} selected={modalConfig.data?.nombre === m.nombre}>{m.nombre}</option>)}
-                  </select>
-                  <select name="dia" className="w-full bg-slate-800 border-none rounded-xl p-3 text-white">
-                    {['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'].map(d => <option key={d} value={d} selected={modalConfig.data?.dia === d}>{d}</option>)}
-                  </select>
-                  <Input name="tramo" placeholder="Ej: 17:00 a 21:00" defaultValue={modalConfig.data?.tramo} required />
-                </>
-              )}
-              {modalConfig.type === 'gasto' && (
-                <>
-                  <Input name="concepto" placeholder="Concepto" defaultValue={modalConfig.data?.concepto} required />
-                  <Input name="importe" type="number" placeholder="Importe (€)" defaultValue={modalConfig.data?.importe} required />
-                  <Input name="fecha" type="date" defaultValue={modalConfig.data?.fecha || new Date().toISOString().split('T')[0]} />
-                </>
-              )}
-              <button type="submit" className="w-full bg-violet-600 py-4 rounded-2xl font-black text-sm tracking-widest text-white shadow-lg shadow-violet-600/20">GUARDAR</button>
-              {modalConfig.id && (
-                <button type="button" onClick={() => {
-                  const col = modalConfig.type === 'miembro' ? 'miembros' : modalConfig.type === 'horario' ? 'horarios' : 'gastos';
-                  deleteRecord(col, modalConfig.id);
-                  setShowModal(false);
-                }} className="w-full text-red-500 font-bold text-[10px] mt-2 uppercase">Eliminar registro</button>
-              )}
-              <button type="button" onClick={() => setShowModal(false)} className="w-full text-slate-500 font-bold text-[10px] mt-2 uppercase">Cancelar</button>
+    <nav class="fixed bottom-0 left-0 right-0 glass flex justify-around p-4 z-50 rounded-t-[2rem]">
+        <button onclick="showView('dash')" class="p-2"><i class="fas fa-home text-xl"></i></button>
+        <button onclick="showView('miembros')" class="p-2"><i class="fas fa-users text-xl"></i></button>
+    </nav>
+
+    <div id="modal" class="fixed inset-0 bg-black/90 hidden z-[100] items-center justify-center p-6">
+        <div class="glass w-full max-w-sm rounded-[2.5rem] p-8">
+            <h3 id="modal-title" class="text-xl font-black mb-6 text-white uppercase">Editar</h3>
+            <form id="form-universal" class="space-y-4">
+                <div id="form-body"></div>
+                <button type="submit" class="w-full bg-violet-600 py-4 rounded-2xl font-black text-white">GUARDAR</button>
+                <button type="button" onclick="closeModal()" class="w-full text-slate-500 font-bold mt-2">CANCELAR</button>
             </form>
-          </div>
         </div>
-      )}
-
-      {/* Toast */}
-      {toast.show && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-violet-600 text-white px-6 py-2 rounded-full text-[10px] font-black z-50 shadow-2xl">
-          {toast.msg.toUpperCase()}
-        </div>
-      )}
     </div>
-  );
-}
 
-const StatCard = ({ title, val, color, border }) => (
-  <div className={`bg-slate-900/50 p-4 rounded-3xl border-b-2 ${border} text-center`}>
-    <p className="text-slate-500 text-[8px] font-black uppercase mb-1">{title}</p>
-    <div className={`text-xl font-black ${color}`}>{val}</div>
-  </div>
-);
+    <script>
+        // BASE DE DATOS LOCAL (Sincronizada por dispositivo)
+        let db = JSON.parse(localStorage.getItem('studio_db')) || { miembros: [], horarios: [] };
+        let rent = 420;
 
-const NavBtn = ({ icon, active, onClick }) => (
-  <button onClick={onClick} className={`p-3 rounded-2xl transition-all ${active ? 'bg-violet-600/20 text-violet-400' : 'text-slate-500'}`}>
-    <i className={`fas fa-${icon} text-lg`}></i>
-  </button>
-);
+        function save() {
+            localStorage.setItem('studio_db', JSON.stringify(db));
+            render();
+        }
 
-const Input = (props) => (
-  <input {...props} className="w-full bg-slate-800 border-none rounded-xl p-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-violet-500 outline-none" />
-);
+        function render() {
+            const mList = document.getElementById('list-miembros');
+            const cuota = (rent / (db.miembros.length || 1)).toFixed(2);
+            
+            document.getElementById('stat-cuota').innerText = cuota + "€";
+            document.getElementById('stat-miembros').innerText = db.miembros.length;
 
-```
+            mList.innerHTML = db.miembros.map(m => `
+                <div class="glass p-4 rounded-2xl flex justify-between items-center">
+                    <div>
+                        <p class="font-bold">${m.nombre}</p>
+                        <p class="text-[10px] text-slate-500 uppercase">${m.rol}</p>
+                    </div>
+                    <button onclick="deleteMiembro('${m.id}')" class="text-red-500 text-xs"><i class="fas fa-trash"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function showView(v) {
+            document.getElementById('view-dash').classList.add('hidden');
+            document.getElementById('view-miembros').classList.add('hidden');
+            document.getElementById('view-' + v).classList.remove('hidden');
+        }
+
+        function openModal(type) {
+            const body = document.getElementById('form-body');
+            document.getElementById('modal').style.display = 'flex';
+            if(type === 'miembro') {
+                body.innerHTML = `
+                    <input type="text" name="nombre" placeholder="Nombre" required class="mb-2">
+                    <input type="text" name="rol" placeholder="Instrumento/Rol" required>
+                `;
+            }
+        }
+
+        document.getElementById('form-universal').onsubmit = (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            db.miembros.push({ id: Date.now(), nombre: fd.get('nombre'), rol: fd.get('rol') });
+            closeModal();
+            save();
+        };
+
+        function deleteMiembro(id) {
+            db.miembros = db.miembros.filter(m => m.id != id);
+            save();
+        }
+
+        function closeModal() { document.getElementById('modal').style.display = 'none'; }
+        
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "backup_estudio.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        window.onload = render;
+    </script>
+</body>
+      </html>
+  
